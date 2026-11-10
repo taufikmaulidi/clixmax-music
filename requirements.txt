@@ -1,0 +1,12 @@
+ytmusicapi>=1.10
+yt-dlp
+pillow>=10
+mutagen
+pystray; sys_platform != "darwin"
+winrt-runtime; sys_platform == "win32"
+winrt-Windows.Foundation; sys_platform == "win32"
+winrt-Windows.Media; sys_platform == "win32"
+winrt-Windows.Media.Playback; sys_platform == "win32"
+winrt-Windows.Storage.Streams; sys_platform == "win32"
+dbus-next; sys_platform == "linux"
+pyobjc-framework-MediaPlayer; sys_platform == "darwin"
