@@ -25,6 +25,8 @@ DIST = os.path.join(ROOT, "dist")
 sys.path.insert(0, ROOT)
 
 WINDOWS, MAC = sys.platform == "win32", sys.platform == "darwin"
+# Versi rilis: dari tag v* di CI (lihat .github/workflows/build.yml), selain itu versi pengembangan.
+VERSION = os.environ.get("CLIXMAX_VERSION") or "0.0.0-dev"
 YTDLP_VERSION = "2026.10.26"
 YTDLP = {  # nama berkas rilis, SHA-256
     "win32": ("yt-dlp.exe", "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d"),
@@ -133,7 +135,17 @@ def main():
     if WINDOWS:
         out = shutil.make_archive(os.path.join(DIST, "ClixMax-windows-%s" % arch), "zip", DIST, "ClixMax")
     elif MAC:
-        # Bundel diubah setelah PyInstaller (bin/, LICENSE): tanda tangan ad-hoc diperbarui supaya tetap sah.
+        import plistlib
+        info = os.path.join(app, "Contents", "Info.plist")
+        with open(info, "rb") as f:
+            plist = plistlib.load(f)
+        # Versi minimum ditulis jelas (semua biner di dalamnya dibangun untuk macOS 11 ke atas), dan versi
+        # aplikasi diisi supaya Finder dan "About" tidak menampilkan 0.0.0.
+        plist.update(LSMinimumSystemVersion="11.0", CFBundleShortVersionString=VERSION, CFBundleVersion=VERSION,
+                     CFBundleName="ClixMax", CFBundleDisplayName="ClixMax", NSHighResolutionCapable=True)
+        with open(info, "wb") as f:
+            plistlib.dump(plist, f)
+        # Bundel diubah setelah PyInstaller (bin/, LICENSE, Info.plist): tanda tangan ad-hoc diperbarui supaya sah.
         subprocess.run(["codesign", "--force", "--deep", "--sign", "-", app], check=True)
         out = os.path.join(DIST, "ClixMax-macos-%s.zip" % arch)
         subprocess.run(["ditto", "-c", "-k", "--keepParent", app, out], check=True)

@@ -44,9 +44,15 @@ Programnya belum ditandatangani, jadi Windows dan macOS akan memperingatkan saat
 - **Linux x64** (`ClixMax-linux-x64.tar.gz`): untuk distro dengan glibc 2.39 ke atas (Ubuntu 24.04, Debian 13,
   Fedora 40, atau lebih baru). Pasang mpv (`sudo apt install mpv`), ekstrak, lalu jalankan `ClixMax/ClixMax`.
   yt-dlp sudah ikut. Distro yang lebih lama: jalankan dari kode sumber (lihat catatan Tk di bawah).
-- **macOS, Apple Silicon** (`ClixMax-macos-arm64.zip`): pasang mpv (`brew install mpv`), ekstrak, lalu
-  pindahkan `ClixMax.app` ke Applications. Saat pertama kali, klik kanan lalu *Open*; bila tetap ditolak,
-  jalankan `xattr -dr com.apple.quarantine /Applications/ClixMax.app`. yt-dlp sudah ikut.
+- **macOS 11 ke atas**: `ClixMax-macos-arm64.zip` untuk Mac Apple Silicon (M1 dan seterusnya),
+  `ClixMax-macos-x64.zip` untuk Mac Intel. Pasang mpv (`brew install mpv`), ekstrak, lalu pindahkan
+  `ClixMax.app` ke Applications. yt-dlp sudah ikut. Karena belum ditandatangani Apple, macOS menolaknya saat
+  pertama kali dibuka:
+  - macOS 15 (Sequoia) atau lebih baru: buka sekali sampai ditolak, lalu *System Settings → Privacy & Security*,
+    gulir ke bawah, pilih *Open Anyway* di samping ClixMax.
+  - macOS 14 atau lebih lama: klik kanan `ClixMax.app`, pilih *Open*.
+  - Bila muncul pesan aplikasi "rusak" (*damaged*), jalankan di Terminal:
+    `xattr -dr com.apple.quarantine /Applications/ClixMax.app`
 
 Setiap rilis dibangun dan diuji otomatis di GitHub Actions: aplikasinya dinyalakan, memutar berkas lokal,
 mencari satu lagu di YouTube Music, dan memutarnya sampai berjalan (tanpa suara).
@@ -111,9 +117,9 @@ SHA-256-nya; lihat `packaging/build.py`. Versi build bisa diuji dengan `ClixMax 
   (menyala, memutar berkas lokal, mencari dan memutar lagu YouTube Music), tapi panel media (MPRIS, Pusat
   Kontrol) dan ikon tray belum pernah dicoba di mesin sungguhan. Laporan dari pengguna macOS dan Linux sangat
   membantu.
-- **Belum ada installer.** Versi siap pakai berupa arsip yang diekstrak, belum ditandatangani. Versi macOS
-  baru untuk Apple Silicon, versi Linux baru untuk distro dengan glibc 2.39 ke atas. Di Linux dan macOS,
-  mpv dipasang sendiri.
+- **Belum ada installer.** Versi siap pakai berupa arsip yang diekstrak dan belum ditandatangani, jadi macOS
+  dan Windows memperingatkan saat pertama kali dibuka. Versi Linux baru untuk distro dengan glibc 2.39 ke
+  atas. Di Linux dan macOS, mpv dipasang sendiri.
 - **Sumber tidak resmi.** Pemutaran memakai yt-dlp, beranda dan pencarian memakai ytmusicapi, dan lirik dari
   Netease, QQ Music, dan Kugou memakai alamat yang tidak didokumentasikan resmi. Semuanya bisa berhenti
   bekerja sewaktu-waktu, dan pemakaiannya bisa bertentangan dengan syarat layanan masing-masing. ClixMax

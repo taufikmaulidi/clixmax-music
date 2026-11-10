@@ -18,7 +18,8 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-          - os: macos-latest   # Apple Silicon (arm64)
+          - os: macos-latest      # Mac Apple Silicon (arm64)
+          - os: macos-15-intel    # Mac Intel (x64); macOS 15 masih mendukung sebagian Mac Intel
           # Ubuntu 24.04, bukan 22.04: Tk 8.6.12 bawaan 22.04 punya bug crash acak saat gambar kanvas diganti,
           # dan versi build membawa Tk dari mesin build (24.04: Tk 8.6.14, bebas dari bug itu).
           # Akibatnya versi build Linux butuh glibc 2.39 ke atas (Ubuntu 24.04, Debian 13, Fedora 40, dst).
@@ -41,6 +42,11 @@ jobs:
 
       - name: Pasang paket Python
         run: python -m pip install -r requirements.txt -r packaging/requirements-build.txt
+
+      - name: Versi dari tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: echo "CLIXMAX_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - name: Build
         if: runner.os != 'Linux'
@@ -81,7 +87,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ClixMax-${{ runner.os }}
+          name: ClixMax-${{ matrix.os }}
           path: |
             dist/ClixMax-*.zip
             dist/ClixMax-*.tar.gz
