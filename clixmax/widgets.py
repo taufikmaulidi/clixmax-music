@@ -581,8 +581,13 @@ class TrackList(tk.Frame):
             if cell:
                 image = self.app.art(track, self.art)
                 if image is not None and image is not cell["img"]:
+                    # Item baru di lapisan yang sama, lalu yang lama dihapus. Mengganti -image lewat itemconfigure
+                    # pada item yang dibuat tanpa gambar membuat Tk 8.6.12 (Ubuntu 22.04) kadang crash.
+                    old = cell["art"]
+                    cell["art"] = self.cv.create_image(*self.cv.coords(old), anchor="nw", image=image)
+                    self.cv.tag_raise(cell["art"], old)
+                    self.cv.delete(old)
                     cell["img"] = image
-                    self.cv.itemconfigure(cell["art"], image=image)
 
     # ----- gambar
     def render(self):
@@ -602,6 +607,7 @@ class TrackList(tk.Frame):
             self.render_note(w)
             return
         rh, art = self.rh, self.art
+        blank = shape(art, art, 0, RAISED, inverse=True)  # transparen penuh: ubin dan ikon not tetap terlihat
         self.text_w = max(px(40), w - px(60) - px(112))
         self.heart_x = w - px(88)
         for i, track in enumerate(self.rows):
@@ -611,13 +617,16 @@ class TrackList(tk.Frame):
                                text=fit(track["header"], font(17, True), w - px(20)))
                 self.cells.append(None)
                 continue
-            cell = {"bg": cv.create_image(0, y + 1, anchor="nw", state="hidden"), "img": self.app.art(track, art)}
+            # Item gambar selalu dibuat langsung dengan gambarnya (lihat refresh_art soal Tk 8.6.12).
+            cell = {"bg": cv.create_image(0, y + 1, anchor="nw", image=self.row_img["hot"], state="hidden"),
+                    "img": self.app.art(track, art)}
             ay = y + (rh - art) // 2
             # Ubin + not selalu ada di bawah; gambarnya menutupi begitu selesai diunduh.
             cv.create_image(px(8), ay, anchor="nw", image=shape(art, art, px(4), RAISED))
             cv.create_text(px(8) + art // 2, ay + art // 2, text=G_NOTE, font=icon_font(16), fill=SILVER)
-            cell["art"] = cv.create_image(px(8), ay, anchor="nw", image=cell["img"] or "")
-            cell["mask"] = cv.create_image(px(8), ay, anchor="nw")
+            cell["art"] = cv.create_image(px(8), ay, anchor="nw", image=cell["img"] or blank)
+            cell["mask"] = cv.create_image(px(8), ay, anchor="nw",
+                                           image=shape(art, art, px(4), self.bg, inverse=True))
             cell["title"] = cv.create_text(px(60), y + px(19), anchor="w", font=font(15), fill=FG,
                                            text=fit(track["title"], font(15), self.text_w))
             sub = " · ".join(part for part in (track.get("tag"), track["artist"]) if part)
