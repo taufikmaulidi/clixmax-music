@@ -40,7 +40,12 @@ jobs:
         run: python -m pip install -r requirements.txt -r packaging/requirements-build.txt
 
       - name: Build
+        if: runner.os != 'Linux'
         run: python packaging/build.py
+
+      - name: Build (Linux, dengan layar virtual supaya modul tray pystray ikut terbungkus)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python packaging/build.py
 
       - name: Uji diri (Windows)
         if: runner.os == 'Windows'
@@ -50,13 +55,18 @@ jobs:
           Get-Content selftest.txt
           exit $p.ExitCode
 
-      - name: Uji diri (Linux)
+      - name: Uji diri (Linux, 5 kali berturut-turut)
         if: runner.os == 'Linux'
         run: |
-          code=0
-          xvfb-run -a dist/ClixMax/ClixMax --selftest="$PWD/selftest.txt" || code=$?
-          cat selftest.txt
-          exit $code
+          failed=0
+          for i in 1 2 3 4 5; do
+            code=0
+            xvfb-run -a dist/ClixMax/ClixMax --selftest="$PWD/selftest$i.txt" || code=$?
+            echo "--- percobaan $i, kode keluar $code"
+            cat selftest$i.txt 2>/dev/null || echo "(laporan tidak tertulis)"
+            [ $code -eq 0 ] || failed=1
+          done
+          exit $failed
 
       - name: Uji diri (macOS)
         if: runner.os == 'macOS'
