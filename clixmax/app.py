@@ -660,8 +660,11 @@ def selftest(report):
     """Uji diri untuk versi build: jendela terbangun, mpv menjawab, yt-dlp ditemukan, lalu satu lagu hasil
     pencarian YouTube Music benar-benar diputar (tanpa suara). Memakai data dan pipe sementara supaya tidak
     menyentuh setelan pengguna. Hasil ditulis ke berkas report; kode keluar 0 bila lolos."""
+    import faulthandler
     import tempfile
     from . import music, player
+    if sys.stderr is not None:  # crash di kode C (Tk, pustaka sistem) tetap meninggalkan jejak tumpukan
+        faulthandler.enable(sys.stderr, all_threads=True)
     work = tempfile.mkdtemp(prefix="clixmax-selftest-")
     player.Mpv.extra = ["--ao=null"]  # mesin build tidak punya kartu suara
     config.PIPE = system.ipc_path("clixmax-selftest")
