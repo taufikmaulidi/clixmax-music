@@ -1,5 +1,4 @@
-# Bangun ClixMax untuk Windows dan macOS (Linux sebagai eksperimen), uji diri tiap hasilnya, lalu lampirkan
-# hasil Windows dan macOS ke Release saat ada tag v*.
+# Bangun ClixMax untuk Windows, Linux, dan macOS, uji diri tiap hasilnya, lalu lampirkan ke Release saat ada tag v*.
 name: build
 
 on:
@@ -20,12 +19,11 @@ jobs:
         include:
           - os: windows-latest
           - os: macos-latest   # Apple Silicon (arm64)
-          # Eksperimen: versi build Linux kadang crash di Tk (versi dari kode sumber tidak). Tetap dibangun dan
-          # diuji supaya kemajuannya terlihat, tapi tidak menggagalkan workflow dan tidak dilampirkan ke rilis.
-          - os: ubuntu-22.04
-            experimental: true
+          # Ubuntu 24.04, bukan 22.04: Tk 8.6.12 bawaan 22.04 punya bug crash acak saat gambar kanvas diganti,
+          # dan versi build membawa Tk dari mesin build (24.04: Tk 8.6.14, bebas dari bug itu).
+          # Akibatnya versi build Linux butuh glibc 2.39 ke atas (Ubuntu 24.04, Debian 13, Fedora 40, dst).
+          - os: ubuntu-24.04
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental == true }}
     steps:
       - uses: actions/checkout@v4
 
@@ -60,11 +58,11 @@ jobs:
           Get-Content selftest.txt
           exit $p.ExitCode
 
-      - name: Uji diri (Linux, 5 kali berturut-turut)
+      - name: Uji diri (Linux, 20 kali berturut-turut; crash acak harus benar-benar hilang)
         if: runner.os == 'Linux'
         run: |
           failed=0
-          for i in 1 2 3 4 5; do
+          for i in $(seq 1 20); do
             code=0
             xvfb-run -a dist/ClixMax/ClixMax --selftest="$PWD/selftest$i.txt" || code=$?
             echo "--- percobaan $i, kode keluar $code"
@@ -83,7 +81,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.experimental && 'eksperimen-' || '' }}ClixMax-${{ runner.os }}
+          name: ClixMax-${{ runner.os }}
           path: |
             dist/ClixMax-*.zip
             dist/ClixMax-*.tar.gz
@@ -99,7 +97,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: out
-          pattern: ClixMax-*   # tanpa artefak eksperimen
+          pattern: ClixMax-*
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:

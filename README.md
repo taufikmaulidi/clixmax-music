@@ -41,8 +41,9 @@ Programnya belum ditandatangani, jadi Windows dan macOS akan memperingatkan saat
 
 - **Windows** (`ClixMax-windows-x64.zip`): ekstrak, lalu buka `ClixMax\ClixMax.exe`. mpv dan yt-dlp sudah
   ikut di dalamnya. Bila muncul "Windows protected your PC", pilih *More info* lalu *Run anyway*.
-- **Linux**: belum ada versi siap pakai. Versi build Linux kadang crash di Tk, sedangkan menjalankan dari
-  kode sumber stabil, jadi untuk sementara pakai cara di bagian *Jalankan dari kode sumber* di bawah.
+- **Linux x64** (`ClixMax-linux-x64.tar.gz`): untuk distro dengan glibc 2.39 ke atas (Ubuntu 24.04, Debian 13,
+  Fedora 40, atau lebih baru). Pasang mpv (`sudo apt install mpv`), ekstrak, lalu jalankan `ClixMax/ClixMax`.
+  yt-dlp sudah ikut. Distro yang lebih lama: jalankan dari kode sumber (lihat catatan Tk di bawah).
 - **macOS, Apple Silicon** (`ClixMax-macos-arm64.zip`): pasang mpv (`brew install mpv`), ekstrak, lalu
   pindahkan `ClixMax.app` ke Applications. Saat pertama kali, klik kanan lalu *Open*; bila tetap ditolak,
   jalankan `xattr -dr com.apple.quarantine /Applications/ClixMax.app`. yt-dlp sudah ikut.
@@ -78,13 +79,18 @@ pip3 install -r requirements.txt
 python3 start.pyw
 ```
 
-**Linux** (belum diuji dengan tampilan; contoh untuk Debian/Ubuntu)
+**Linux** (contoh untuk Debian/Ubuntu)
 
 ```
 sudo apt install mpv python3-tk python3-pip
 pip3 install -r requirements.txt
 python3 start.pyw
 ```
+
+Tk 8.6.12, bawaan Ubuntu 22.04 dan Linux Mint 21, punya bug yang kadang membuat aplikasi Tk crash saat gambar
+di kanvas diganti. ClixMax mengurangi peluangnya, tapi tidak bisa menghilangkannya. Cek versinya dengan
+`python3 -c "import tkinter; print(tkinter.Tcl().eval('info patchlevel'))"`; bila hasilnya 8.6.12, pakai Python
+dengan Tk 8.6.13 ke atas.
 
 Bisa juga dijalankan sebagai modul dari folder ini: `python -m clixmax`.
 
@@ -101,11 +107,13 @@ SHA-256-nya; lihat `packaging/build.py`. Versi build bisa diuji dengan `ClixMax 
 
 ## Catatan penting
 
-- **Hanya Windows yang sudah diuji penuh.** Di Linux baru jalur tanpa tampilan yang diuji (lewat WSL).
-  Panel media Linux (MPRIS) dan macOS (Pusat Kontrol) belum pernah dicoba sungguhan. Laporan dari pengguna
-  macOS dan Linux sangat membantu.
-- **Belum ada installer.** Versi siap pakai berupa arsip yang diekstrak, belum ditandatangani, dan versi
-  macOS baru untuk Apple Silicon. Di Linux dan macOS, mpv dipasang sendiri.
+- **Hanya Windows yang sudah diuji penuh dengan tangan.** Di Linux dan macOS, uji otomatis di CI lolos
+  (menyala, memutar berkas lokal, mencari dan memutar lagu YouTube Music), tapi panel media (MPRIS, Pusat
+  Kontrol) dan ikon tray belum pernah dicoba di mesin sungguhan. Laporan dari pengguna macOS dan Linux sangat
+  membantu.
+- **Belum ada installer.** Versi siap pakai berupa arsip yang diekstrak, belum ditandatangani. Versi macOS
+  baru untuk Apple Silicon, versi Linux baru untuk distro dengan glibc 2.39 ke atas. Di Linux dan macOS,
+  mpv dipasang sendiri.
 - **Sumber tidak resmi.** Pemutaran memakai yt-dlp, beranda dan pencarian memakai ytmusicapi, dan lirik dari
   Netease, QQ Music, dan Kugou memakai alamat yang tidak didokumentasikan resmi. Semuanya bisa berhenti
   bekerja sewaktu-waktu, dan pemakaiannya bisa bertentangan dengan syarat layanan masing-masing. ClixMax

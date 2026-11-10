@@ -581,8 +581,9 @@ class TrackList(tk.Frame):
             if cell:
                 image = self.app.art(track, self.art)
                 if image is not None and image is not cell["img"]:
-                    # Item baru di lapisan yang sama, lalu yang lama dihapus. Mengganti -image lewat itemconfigure
-                    # pada item yang dibuat tanpa gambar membuat Tk 8.6.12 (Ubuntu 22.04) kadang crash.
+                    # Item baru di lapisan yang sama, lalu yang lama dihapus. Tk 8.6.12 (Ubuntu 22.04) punya bug
+                    # yang kadang membuat crash saat -image diganti lewat itemconfigure; cara ini menurunkan
+                    # peluangnya (di uji CI dari sekitar 35% ke 8%), tapi hanya Tk 8.6.13+ yang bebas darinya.
                     old = cell["art"]
                     cell["art"] = self.cv.create_image(*self.cv.coords(old), anchor="nw", image=image)
                     self.cv.tag_raise(cell["art"], old)
@@ -617,7 +618,7 @@ class TrackList(tk.Frame):
                                text=fit(track["header"], font(17, True), w - px(20)))
                 self.cells.append(None)
                 continue
-            # Item gambar selalu dibuat langsung dengan gambarnya (lihat refresh_art soal Tk 8.6.12).
+            # Item gambar dibuat langsung dengan gambarnya, tidak kosong lalu diisi (lihat refresh_art soal Tk 8.6.12).
             cell = {"bg": cv.create_image(0, y + 1, anchor="nw", image=self.row_img["hot"], state="hidden"),
                     "img": self.app.art(track, art)}
             ay = y + (rh - art) // 2
