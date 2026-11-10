@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import sysconfig
 import time
 
@@ -22,11 +23,16 @@ def _script_dirs():
 
 
 def find_exe(name):
-    """Cari program di PATH, lalu di tempat pemasangan yang umum tapi sering tidak masuk PATH."""
+    """Cari program: dulu folder bin bawaan versi build, lalu PATH, lalu tempat pemasangan yang umum tapi sering
+    tidak masuk PATH."""
+    exe = name + (".exe" if system.WINDOWS else "")
+    if getattr(sys, "frozen", False):  # versi build (PyInstaller): mpv/yt-dlp ikut di bin/ sebelah program
+        bundled = os.path.join(os.path.dirname(sys.executable), "bin", exe)
+        if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
+            return bundled
     path = shutil.which(name)
     if path:
         return path
-    exe = name + (".exe" if system.WINDOWS else "")
     places = _script_dirs()
     if system.WINDOWS:  # winget memasang mpv di folder paket, tidak selalu masuk PATH
         local = os.environ.get("LOCALAPPDATA", "")

@@ -1,0 +1,91 @@
+# Bangun ClixMax untuk Windows, Linux, dan macOS, uji diri tiap hasilnya, lalu lampirkan ke Release saat ada tag v*.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: ubuntu-22.04   # glibc lebih lama: hasilnya jalan juga di distro yang tidak terlalu baru
+          - os: macos-latest   # Apple Silicon (arm64)
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pasang mpv (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y mpv xvfb
+
+      - name: Pasang mpv (macOS)
+        if: runner.os == 'macOS'
+        run: brew install mpv
+
+      - name: Pasang paket Python
+        run: python -m pip install -r requirements.txt -r packaging/requirements-build.txt
+
+      - name: Build
+        run: python packaging/build.py
+
+      - name: Uji diri (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\ClixMax\ClixMax.exe -ArgumentList "--selftest=$PWD\selftest.txt" -Wait -PassThru
+          Get-Content selftest.txt
+          exit $p.ExitCode
+
+      - name: Uji diri (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          code=0
+          xvfb-run -a dist/ClixMax/ClixMax --selftest="$PWD/selftest.txt" || code=$?
+          cat selftest.txt
+          exit $code
+
+      - name: Uji diri (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          code=0
+          dist/ClixMax.app/Contents/MacOS/ClixMax --selftest="$PWD/selftest.txt" || code=$?
+          cat selftest.txt
+          exit $code
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClixMax-${{ runner.os }}
+          path: |
+            dist/ClixMax-*.zip
+            dist/ClixMax-*.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true

@@ -34,14 +34,32 @@ Lagu, cover, dan lirik di tangkapan layar ini contoh buatan `tests/screenshots.p
   garis tipis di tepi atas supaya tab browser di bawahnya tetap bisa diklik
 - Menu klik kanan dan pintasan keyboard (Ctrl+H menampilkan semuanya)
 
-## Yang dibutuhkan
+## Unduh versi siap pakai
+
+Ambil berkas untuk OS Anda di halaman [Releases](https://github.com/taufikmaulidi/clixmax-music/releases).
+Programnya belum ditandatangani, jadi Windows dan macOS akan memperingatkan saat pertama kali dibuka.
+
+- **Windows** (`ClixMax-windows-x64.zip`): ekstrak, lalu buka `ClixMax\ClixMax.exe`. mpv dan yt-dlp sudah
+  ikut di dalamnya. Bila muncul "Windows protected your PC", pilih *More info* lalu *Run anyway*.
+- **Linux** (`ClixMax-linux-x64.tar.gz`): pasang mpv (`sudo apt install mpv`), ekstrak, lalu jalankan
+  `ClixMax/ClixMax`. yt-dlp sudah ikut.
+- **macOS, Apple Silicon** (`ClixMax-macos-arm64.zip`): pasang mpv (`brew install mpv`), ekstrak, lalu
+  pindahkan `ClixMax.app` ke Applications. Saat pertama kali, klik kanan lalu *Open*; bila tetap ditolak,
+  jalankan `xattr -dr com.apple.quarantine /Applications/ClixMax.app`. yt-dlp sudah ikut.
+
+Setiap rilis dibangun dan diuji otomatis di GitHub Actions: aplikasinya dinyalakan, mencari satu lagu, dan
+memutarnya sampai berjalan (tanpa suara) di ketiga OS.
+
+## Jalankan dari kode sumber
+
+### Yang dibutuhkan
 
 - Python 3.10 atau lebih baru, dengan tkinter
 - mpv
 - Paket Python di `requirements.txt`: ytmusicapi, yt-dlp, Pillow, mutagen, pystray, dan pustaka media
   sesuai OS (winrt di Windows, dbus-next di Linux, pyobjc di macOS); pip memilihnya sendiri
 
-## Pasang dan jalankan
+### Pasang dan jalankan
 
 **Windows** (sudah diuji)
 
@@ -70,12 +88,24 @@ python3 start.pyw
 
 Bisa juga dijalankan sebagai modul dari folder ini: `python -m clixmax`.
 
+### Membangun sendiri
+
+```
+pip install -r requirements.txt -r packaging/requirements-build.txt
+python packaging/build.py
+```
+
+Hasilnya di `dist/` untuk OS yang sedang dipakai. Di Windows butuh 7-Zip untuk membuka arsip mpv
+(`winget install 7zip.7zip`). mpv dan yt-dlp yang ikut dibagikan dikunci ke versi tertentu dan diperiksa
+SHA-256-nya; lihat `packaging/build.py`. Versi build bisa diuji dengan `ClixMax --selftest=hasil.txt`.
+
 ## Catatan penting
 
 - **Hanya Windows yang sudah diuji penuh.** Di Linux baru jalur tanpa tampilan yang diuji (lewat WSL).
   Panel media Linux (MPRIS) dan macOS (Pusat Kontrol) belum pernah dicoba sungguhan. Laporan dari pengguna
   macOS dan Linux sangat membantu.
-- **Belum ada installer.** Python, mpv, dan paket di `requirements.txt` dipasang sendiri.
+- **Belum ada installer.** Versi siap pakai berupa arsip yang diekstrak, belum ditandatangani, dan versi
+  macOS baru untuk Apple Silicon. Di Linux dan macOS, mpv dipasang sendiri.
 - **Sumber tidak resmi.** Pemutaran memakai yt-dlp, beranda dan pencarian memakai ytmusicapi, dan lirik dari
   Netease, QQ Music, dan Kugou memakai alamat yang tidak didokumentasikan resmi. Semuanya bisa berhenti
   bekerja sewaktu-waktu, dan pemakaiannya bisa bertentangan dengan syarat layanan masing-masing. ClixMax

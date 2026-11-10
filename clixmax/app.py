@@ -642,7 +642,54 @@ def create(startup_query=""):
     return root, app
 
 
+def selftest(report):
+    """Uji diri untuk versi build: jendela terbangun, mpv menjawab, yt-dlp ditemukan, lalu satu lagu hasil
+    pencarian YouTube Music benar-benar diputar (tanpa suara). Memakai data dan pipe sementara supaya tidak
+    menyentuh setelan pengguna. Hasil ditulis ke berkas report; kode keluar 0 bila lolos."""
+    import tempfile
+    from . import music, player
+    work = tempfile.mkdtemp(prefix="clixmax-selftest-")
+    player.Mpv.extra = ["--ao=null"]  # mesin build tidak punya kartu suara
+    config.PIPE = system.ipc_path("clixmax-selftest")
+    for name in ("CFG", "LOG", "LIB", "SESSION", "LYRICS", "LOCAL"):
+        setattr(config, name, os.path.join(work, os.path.basename(getattr(config, name))))
+    config.OLD_CFG = None
+    lines, ok = [], False
+    try:
+        root, app = create("")
+        end = time.time() + 40
+        while time.time() < end and app.state is None:
+            root.update()
+            time.sleep(0.05)
+        mpv, ytdlp = player.find_exe("mpv"), player.find_exe("yt-dlp")
+        lines += ["jendela: %s" % root.title(), "mpv: %s (%s)" % ("menjawab" if app.state else "tidak menjawab", mpv),
+                  "yt-dlp: %s" % ytdlp, "tray: %s" % ("ada" if app.tray else "tidak ada")]
+        ok = app.state is not None and bool(ytdlp)
+        if ok:
+            rows = [row for row in music.search(app.ytm(), "lofi hip hop", "songs") if "url" in row]
+            lines.append("pencarian: %d lagu" % len(rows))
+            if rows:
+                app.add([dict(rows[0])], play=True)
+                end = time.time() + 60
+                while time.time() < end and not ((app.state or {}).get("t") or 0) > 2:
+                    root.update()
+                    time.sleep(0.05)
+            played = ((app.state or {}).get("t") or 0) > 2
+            lines.append("memutar: %s" % ("ya, %s" % rows[0]["title"] if played else "tidak"))
+            ok = played
+        app.close()
+    except Exception:
+        lines.append(traceback.format_exc())
+    lines.append("LOLOS" if ok else "GAGAL")
+    with open(report, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    sys.exit(0 if ok else 1)
+
+
 def main():
+    for arg in sys.argv[1:]:
+        if arg.startswith("--selftest="):
+            selftest(arg.split("=", 1)[1])
     if not system.single_instance("clixmax"):
         root = tk.Tk()
         root.withdraw()
