@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-          - os: macos-latest      # Mac Apple Silicon (arm64)
+          - os: macos-15          # Mac Apple Silicon (arm64); dibangun dan diuji di macOS 15, bukan versi terbaru
           - os: macos-15-intel    # Mac Intel (x64); macOS 15 masih mendukung sebagian Mac Intel
           # Ubuntu 24.04, bukan 22.04: Tk 8.6.12 bawaan 22.04 punya bug crash acak saat gambar kanvas diganti,
           # dan versi build membawa Tk dari mesin build (24.04: Tk 8.6.14, bebas dari bug itu).
