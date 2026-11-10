@@ -41,14 +41,14 @@ Programnya belum ditandatangani, jadi Windows dan macOS akan memperingatkan saat
 
 - **Windows** (`ClixMax-windows-x64.zip`): ekstrak, lalu buka `ClixMax\ClixMax.exe`. mpv dan yt-dlp sudah
   ikut di dalamnya. Bila muncul "Windows protected your PC", pilih *More info* lalu *Run anyway*.
-- **Linux** (`ClixMax-linux-x64.tar.gz`): pasang mpv (`sudo apt install mpv`), ekstrak, lalu jalankan
-  `ClixMax/ClixMax`. yt-dlp sudah ikut.
+- **Linux**: belum ada versi siap pakai. Versi build Linux kadang crash di Tk, sedangkan menjalankan dari
+  kode sumber stabil, jadi untuk sementara pakai cara di bagian *Jalankan dari kode sumber* di bawah.
 - **macOS, Apple Silicon** (`ClixMax-macos-arm64.zip`): pasang mpv (`brew install mpv`), ekstrak, lalu
   pindahkan `ClixMax.app` ke Applications. Saat pertama kali, klik kanan lalu *Open*; bila tetap ditolak,
   jalankan `xattr -dr com.apple.quarantine /Applications/ClixMax.app`. yt-dlp sudah ikut.
 
-Setiap rilis dibangun dan diuji otomatis di GitHub Actions: aplikasinya dinyalakan, mencari satu lagu, dan
-memutarnya sampai berjalan (tanpa suara) di ketiga OS.
+Setiap rilis dibangun dan diuji otomatis di GitHub Actions: aplikasinya dinyalakan, memutar berkas lokal,
+mencari satu lagu di YouTube Music, dan memutarnya sampai berjalan (tanpa suara).
 
 ## Jalankan dari kode sumber
 

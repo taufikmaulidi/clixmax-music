@@ -577,18 +577,12 @@ class TrackList(tk.Frame):
                                   text=fit(self.rows[index]["title"], font(15), self.text_w))
 
     def refresh_art(self):
-        retired = []
         for track, cell in zip(self.rows, self.cells):
             if cell:
                 image = self.app.art(track, self.art)
                 if image is not None and image is not cell["img"]:
-                    # Pasang yang baru dulu, baru lepas yang lama, dan simpan yang lama sampai Tk selesai menggambar
-                    # ulang: Tk di X11 bisa crash bila gambar yang sedang tampil dihapus di tengah pergantian.
-                    self.cv.itemconfigure(cell["art"], image=image)
-                    retired.append(cell["img"])
                     cell["img"] = image
-        if retired:
-            self.after_idle(retired.clear)
+                    self.cv.itemconfigure(cell["art"], image=image)
 
     # ----- gambar
     def render(self):

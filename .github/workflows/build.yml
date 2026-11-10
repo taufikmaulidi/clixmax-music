@@ -1,4 +1,5 @@
-# Bangun ClixMax untuk Windows, Linux, dan macOS, uji diri tiap hasilnya, lalu lampirkan ke Release saat ada tag v*.
+# Bangun ClixMax untuk Windows dan macOS (Linux sebagai eksperimen), uji diri tiap hasilnya, lalu lampirkan
+# hasil Windows dan macOS ke Release saat ada tag v*.
 name: build
 
 on:
@@ -18,9 +19,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-          - os: ubuntu-22.04   # glibc lebih lama: hasilnya jalan juga di distro yang tidak terlalu baru
           - os: macos-latest   # Apple Silicon (arm64)
+          # Eksperimen: versi build Linux kadang crash di Tk (versi dari kode sumber tidak). Tetap dibangun dan
+          # diuji supaya kemajuannya terlihat, tapi tidak menggagalkan workflow dan tidak dilampirkan ke rilis.
+          - os: ubuntu-22.04
+            experimental: true
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
     steps:
       - uses: actions/checkout@v4
 
@@ -78,7 +83,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ClixMax-${{ runner.os }}
+          name: ${{ matrix.experimental && 'eksperimen-' || '' }}ClixMax-${{ runner.os }}
           path: |
             dist/ClixMax-*.zip
             dist/ClixMax-*.tar.gz
@@ -94,6 +99,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: out
+          pattern: ClixMax-*   # tanpa artefak eksperimen
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
