@@ -2,6 +2,7 @@
 import os
 import queue
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -642,6 +643,19 @@ def create(startup_query=""):
     return root, app
 
 
+def write_tone(path, seconds):
+    """Berkas WAV berisi nada 440 Hz, untuk menguji pemutaran tanpa internet."""
+    import math
+    import struct
+    import wave
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(22050)
+        w.writeframes(b"".join(struct.pack("<h", int(3000 * math.sin(2 * math.pi * 440 * i / 22050)))
+                               for i in range(22050 * seconds)))
+
+
 def selftest(report):
     """Uji diri untuk versi build: jendela terbangun, mpv menjawab, yt-dlp ditemukan, lalu satu lagu hasil
     pencarian YouTube Music benar-benar diputar (tanpa suara). Memakai data dan pipe sementara supaya tidak
@@ -665,18 +679,40 @@ def selftest(report):
         lines += ["jendela: %s" % root.title(), "mpv: %s (%s)" % ("menjawab" if app.state else "tidak menjawab", mpv),
                   "yt-dlp: %s" % ytdlp, "tray: %s" % ("ada" if app.tray else "tidak ada")]
         ok = app.state is not None and bool(ytdlp)
+
+        def plays(track, seconds):
+            app.clear_queue()
+            app.add([track], play=True)
+            end = time.time() + seconds
+            while time.time() < end and not ((app.state or {}).get("t") or 0) > 2:
+                root.update()
+                time.sleep(0.05)
+            return ((app.state or {}).get("t") or 0) > 2
+
+        if ok:  # berkas lokal: membuktikan mpv dan jalur pemutaran tanpa bergantung pada YouTube
+            tone = os.path.join(work, "nada.wav")
+            write_tone(tone, 6)
+            local = plays({"title": "Nada uji", "artist": "", "url": tone, "kind": "local", "id": "", "dur": "0:06",
+                           "art": None}, 20)
+            lines.append("memutar berkas lokal: %s" % ("ya" if local else "tidak"))
+            ok = local
         if ok:
             rows = [row for row in music.search(app.ytm(), "lofi hip hop", "songs") if "url" in row]
-            lines.append("pencarian: %d lagu" % len(rows))
-            if rows:
-                app.add([dict(rows[0])], play=True)
-                end = time.time() + 60
-                while time.time() < end and not ((app.state or {}).get("t") or 0) > 2:
-                    root.update()
-                    time.sleep(0.05)
-            played = ((app.state or {}).get("t") or 0) > 2
-            lines.append("memutar: %s" % ("ya, %s" % rows[0]["title"] if played else "tidak"))
-            ok = played
+            lines.append("pencarian YouTube Music: %d lagu" % len(rows))
+            streamed = bool(rows) and plays(dict(rows[0]), 60)
+            lines.append("memutar dari YouTube: %s" % ("ya, %s" % rows[0]["title"] if streamed else "tidak"))
+            if rows and not streamed:
+                # Tampilkan alasan yt-dlp apa adanya; YouTube sering menolak alamat IP pusat data (mesin build).
+                run = subprocess.run([ytdlp, "--simulate", "--no-warnings", "-f", "bestaudio/best", rows[0]["url"]],
+                                     capture_output=True, timeout=120, creationflags=system.HIDDEN)
+                reason = (run.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-1:] or ["(kosong)"]
+                lines.append("yt-dlp: %s" % reason[0])
+                blocked = any(mark in reason[0] for mark in ("Sign in to confirm", "not a bot"))
+                lines.append("catatan: YouTube menolak alamat IP mesin ini (bukan galat ClixMax)" if blocked else
+                             "catatan: pemutaran YouTube gagal karena sebab lain")
+                ok = blocked and bool(os.environ.get("CI"))  # hanya dimaafkan di mesin build, tidak di komputer pengguna
+            else:
+                ok = streamed
         app.close()
     except Exception:
         lines.append(traceback.format_exc())
