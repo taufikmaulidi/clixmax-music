@@ -52,8 +52,8 @@ Programnya belum ditandatangani, jadi Windows dan macOS akan memperingatkan saat
 
   Distro yang lebih lama: jalankan dari kode sumber (lihat catatan Tk di bawah).
 - **macOS 11 ke atas**: `ClixMax-macos-arm64.dmg` untuk Mac Apple Silicon (M1 dan seterusnya),
-  `ClixMax-macos-x64.dmg` untuk Mac Intel. Pasang mpv (`brew install mpv`), buka berkas .dmg, lalu seret
-  `ClixMax.app` ke Applications. Isi yang sama juga ada sebagai .zip. Karena belum ditandatangani Apple, macOS
+  `ClixMax-macos-x64.dmg` untuk Mac Intel. Buka berkas .dmg, lalu seret `ClixMax.app` ke Applications;
+  mpv sudah ikut di dalamnya, jadi tidak perlu Homebrew. Isi yang sama juga ada sebagai .zip. Karena belum ditandatangani Apple, macOS
   menolaknya saat pertama kali dibuka:
   - macOS 15 (Sequoia) atau lebih baru: buka sekali sampai ditolak, lalu *System Settings → Privacy & Security*,
     gulir ke bawah, pilih *Open Anyway* di samping ClixMax.
@@ -130,8 +130,9 @@ mpv dan yt-dlp yang ikut dibagikan dikunci ke versi tertentu dan diperiksa SHA-2
   Kontrol) dan ikon tray belum pernah dicoba di mesin sungguhan. Laporan dari pengguna macOS dan Linux sangat
   membantu.
 - **Belum ditandatangani.** Installer Windows dan berkas .dmg macOS belum ditandatangani, jadi keduanya
-  memperingatkan saat pertama kali dibuka. Versi Linux baru untuk distro dengan glibc 2.39 ke atas. Di macOS,
-  mpv dipasang sendiri lewat Homebrew; di Linux, paket .deb memasangnya lewat apt.
+  memperingatkan saat pertama kali dibuka. Versi Linux baru untuk distro dengan glibc 2.39 ke atas. Di Windows
+  dan macOS mpv ikut di dalam ClixMax; di Linux, paket .deb memasangnya lewat apt. mpv yang ikut di macOS adalah
+  build khusus audio dari media-kit (mpv 0.36), lebih lama dari mpv Homebrew tetapi cukup untuk memutar musik.
 - **Sumber tidak resmi.** Pemutaran memakai yt-dlp, beranda dan pencarian memakai ytmusicapi, dan lirik dari
   Netease, QQ Music, dan Kugou memakai alamat yang tidak didokumentasikan resmi. Semuanya bisa berhenti
   bekerja sewaktu-waktu, dan pemakaiannya bisa bertentangan dengan syarat layanan masing-masing. ClixMax

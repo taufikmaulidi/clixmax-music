@@ -9,9 +9,10 @@ Hasil di dist/:
            Python; keduanya berjalan di dalam ClixMax.exe, jadi Task Manager hanya menampilkan satu proses.
 - Linux:   ClixMax-linux-x64.deb (apt sekalian memasang libmpv dari distro) dan ClixMax-linux-x64.tar.gz
            (mpv dipasang sendiri: sudo apt install mpv).
-- macOS:   ClixMax-macos-arm64.dmg dan .zip berisi ClixMax.app; mpv dari Homebrew (brew install mpv).
-Di Linux dan macOS libmpv dari sistem dimuat di dalam proses ClixMax juga; program yt-dlp yang ikut di bin/
-hanya cadangan bila libmpv itu tidak bisa dimuat dan ClixMax kembali menjalankan program mpv.
+- macOS:   ClixMax-macos-arm64.dmg dan .zip berisi ClixMax.app. libmpv khusus audio ikut di bin/ (tidak perlu
+           Homebrew) dan dimuat di dalam proses ClixMax.
+Di Linux libmpv dari sistem dimuat di dalam proses ClixMax juga. Program yt-dlp yang ikut di bin/ (Linux, macOS)
+hanya cadangan bila libmpv tidak bisa dimuat dan ClixMax kembali menjalankan program mpv.
 
 mpv dan yt-dlp yang diunduh dikunci ke versi tertentu dan diperiksa SHA-256-nya, supaya build bisa diulang
 dan berkas yang ikut dibagikan tidak bisa ditukar diam-diam. Modul yt-dlp dikunci di requirements-build.txt.
@@ -23,6 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import urllib.request
 
@@ -48,6 +50,19 @@ MPV_NOTE = """libmpv-2.dll di folder ini adalah build dari shinchiro/mpv-winbuil
 mpv berlisensi GPLv2 atau lebih baru; kode sumbernya di https://github.com/mpv-player/mpv dan
 skrip build-nya di https://github.com/shinchiro/mpv-winbuild-cmake.
 """
+# libmpv untuk macOS: build khusus audio dari media-kit (mpv 0.36 tanpa Lua, ffmpeg dengan semua decoder audio dan
+# HLS, TLS lewat mbedtls), untuk macOS 10.9+ (Intel) dan 11+ (Apple Silicon). Homebrew tidak dipakai karena
+# pustakanya hanya jalan di versi macOS mesin build. Arsip per arsitektur: SHA-256.
+LIBMPV_MAC = ("https://github.com/media-kit/libmpv-darwin-build/releases/download/v0.7.3/"
+              "libmpv-libs_v0.7.3_macos-%s-audio-full.tar.gz")
+LIBMPV_MAC_SHA256 = {"amd64": "a2d2104db297a6566ed512258b295ee1728c4bf4b8dc2d4c0684917e46423cfa",
+                     "arm64": "a44c48cf05d52cd302f1fbc63be81440251b4b992dd069e173b1883d281f89b9"}
+MPV_NOTE_MAC = """libmpv.dylib dan pustaka lib*.dylib di folder ini (ffmpeg, mbedtls) adalah build khusus audio dari
+media-kit/libmpv-darwin-build rilis v0.7.3 (https://github.com/media-kit/libmpv-darwin-build/releases/tag/v0.7.3).
+Yang diubah hanya rpath libmpv.dylib (supaya pustaka di sebelahnya ditemukan) dan tanda tangan ad-hoc-nya.
+mpv dan ffmpeg di build ini berlisensi LGPL-2.1, mbedtls Apache-2.0; kode sumber dan skrip build-nya di
+https://github.com/media-kit/libmpv-darwin-build.
+"""
 YTDLP_NOTE = "yt-dlp %s (https://github.com/yt-dlp/yt-dlp) berlisensi Unlicense, dibagikan ulang tanpa diubah.\n"
 
 
@@ -72,7 +87,8 @@ def download(url, path, sha256):
 
 
 def tools(bin_dir):
-    """Yang ikut dibagikan di bin/: libmpv di Windows (yt-dlp ikut sebagai modul), program yt-dlp di lainnya."""
+    """Yang ikut dibagikan di bin/: libmpv di Windows dan macOS (yt-dlp ikut sebagai modul), plus program yt-dlp
+    sebagai cadangan di macOS dan Linux."""
     os.makedirs(bin_dir, exist_ok=True)
     note = YTDLP_NOTE % YTDLP_VERSION
     if WINDOWS:
@@ -93,8 +109,37 @@ def tools(bin_dir):
         target = os.path.join(bin_dir, "yt-dlp")
         download("https://github.com/yt-dlp/yt-dlp/releases/download/%s/%s" % (YTDLP_VERSION, name), target, sha)
         os.chmod(target, 0o755)
+        if MAC:
+            libmpv_mac(bin_dir)
+            note = MPV_NOTE_MAC + "\n" + note
     with open(os.path.join(bin_dir, "PROGRAM-PENDAMPING.txt"), "w", encoding="utf-8") as f:
         f.write(note)
+
+
+def libmpv_mac(bin_dir):
+    """Taruh libmpv dan pustaka pendampingnya di bin/, siap dimuat dari dalam ClixMax.app."""
+    arch = {"x86_64": "amd64", "arm64": "arm64"}[platform.machine()]
+    archive = os.path.join(BUILD, "libmpv-macos-%s.tar.gz" % arch)
+    download(LIBMPV_MAC % arch, archive, LIBMPV_MAC_SHA256[arch])
+    with tarfile.open(archive) as tar:
+        for member in tar.getmembers():
+            if member.isfile() and member.name.endswith(".dylib"):
+                with tar.extractfile(member) as src, open(os.path.join(bin_dir, os.path.basename(member.name)),
+                                                          "wb") as out:
+                    shutil.copyfileobj(src, out)
+    lib = os.path.join(bin_dir, "libmpv.dylib")
+    if not os.path.exists(lib):
+        raise SystemExit("libmpv.dylib tidak ada di arsip libmpv macOS")
+    # Pustaka-pustakanya saling memanggil lewat @rpath. Rpath @loader_path di libmpv.dylib berlaku juga untuk semua
+    # yang dimuat lewat libmpv, jadi semuanya ditemukan di folder ini. Rpath bawaannya (folder /nix/store mesin
+    # build media-kit) diganti, bukan ditambah: yang baru lebih pendek sehingga pasti muat di header Mach-O.
+    found = re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*) \(offset \d+\)",
+                       subprocess.run(["otool", "-l", lib], capture_output=True, text=True, check=True).stdout)
+    change = ["-rpath", found[0], "@loader_path"] if found else ["-add_rpath", "@loader_path"]
+    for old in found[1:]:
+        change += ["-delete_rpath", old]
+    subprocess.run(["install_name_tool"] + change + [lib], check=True)
+    subprocess.run(["codesign", "--force", "--sign", "-", lib], check=True)  # tanda tangan lama batal setelah diubah
 
 
 def find_iscc():

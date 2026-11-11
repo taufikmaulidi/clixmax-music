@@ -32,14 +32,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      # mpv sengaja tidak dipasang di sini: paket .deb ClixMax yang harus menariknya (libmpv2) lewat apt.
+      # mpv sengaja tidak dipasang di mesin build: di Linux paket .deb ClixMax yang harus menariknya (libmpv2) lewat
+      # apt, di macOS libmpv ikut di dalam ClixMax.app (tanpa Homebrew), dan uji diri membuktikan keduanya.
       - name: Pasang layar virtual (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb
-
-      - name: Pasang mpv (macOS)
-        if: runner.os == 'macOS'
-        run: brew install mpv
 
       - name: Pasang Inno Setup (Windows, untuk installer)
         if: runner.os == 'Windows'
@@ -100,7 +97,9 @@ jobs:
           code=0
           "$RUNNER_TEMP/dmg/ClixMax.app/Contents/MacOS/ClixMax" --selftest="$PWD/selftest.txt" || code=$?
           cat selftest.txt
-          hdiutil detach "$RUNNER_TEMP/dmg"
+          # Sesaat setelah ClixMax keluar, macOS kadang masih memegang volumenya ("Resource busy"). Hasil uji
+          # ditentukan $code, bukan berhasil-tidaknya volume dilepas.
+          hdiutil detach "$RUNNER_TEMP/dmg" || hdiutil detach -force "$RUNNER_TEMP/dmg" || true
           exit $code
 
       - uses: actions/upload-artifact@v4

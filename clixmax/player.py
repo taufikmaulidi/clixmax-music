@@ -63,14 +63,16 @@ def find_exe(name):
 
 
 def find_libmpv():
-    """Lokasi libmpv, atau None. Windows: yang ikut di folder bin versi build. macOS dan Linux: yang terpasang
+    """Lokasi libmpv, atau None. Windows dan macOS: yang ikut di folder bin versi build. Selain itu yang terpasang
     bersama mpv dari Homebrew/MacPorts atau paket distro (paket mpv selalu membawa libmpv)."""
+    frozen = getattr(sys, "frozen", False)
     if system.WINDOWS:
-        frozen = getattr(sys, "frozen", False)
         base = os.path.dirname(sys.executable if frozen else os.path.dirname(os.path.abspath(__file__)))
         places = [os.path.join(base, "bin", "libmpv-2.dll")]
     elif system.MAC:
-        places = [os.path.join(d, "libmpv.2.dylib") for d in ("/opt/homebrew/lib", "/usr/local/lib", "/opt/local/lib")]
+        # Versi build membawa libmpv sendiri di ClixMax.app/Contents/MacOS/bin, jadi tidak perlu Homebrew.
+        places = [os.path.join(os.path.dirname(sys.executable), "bin", "libmpv.dylib")] if frozen else []
+        places += [os.path.join(d, "libmpv.2.dylib") for d in ("/opt/homebrew/lib", "/usr/local/lib", "/opt/local/lib")]
     else:
         places = sorted(glob.glob("/usr/lib*/libmpv.so.2") + glob.glob("/usr/lib/*-linux-gnu/libmpv.so.2") +
                         glob.glob("/usr/local/lib*/libmpv.so.2"))
@@ -198,6 +200,7 @@ class Mpv:
 
 _STRING, _FLAG, _INT64, _DOUBLE, _NODE, _ARRAY, _MAP = 1, 3, 4, 5, 6, 7, 8
 _EVENT_SHUTDOWN, _EVENT_HOOK = 1, 25
+_ERROR_OPTION_NOT_FOUND = -5
 
 
 class _Node(ctypes.Structure):
@@ -310,10 +313,14 @@ class LibMpv(Mpv):
         else:
             raise RuntimeError("libmpv gagal dibuat (locale %s)" % locale.setlocale(locale.LC_NUMERIC))
         # input-media-keys=no: tombol media dan panel media OS diurus ClixMax sendiri (media.py), bukan mpv.
-        options = (OPTIONS + ["vid=no", "ytdl=no", "input-media-keys=no", "volume=%d" % volume] +
-                   [opt.lstrip("-") for opt in self.extra])
-        for name, _, value in (opt.partition("=") for opt in options):
-            self.check(self.lib.mpv_set_option_string(self.ctx, name.encode(), value.encode()), name)
+        own = OPTIONS + ["vid=no", "ytdl=no", "input-media-keys=no", "volume=%d" % volume]
+        options = own + [opt.lstrip("-") for opt in self.extra]
+        for i, (name, _, value) in enumerate(opt.partition("=") for opt in options):
+            code = self.lib.mpv_set_option_string(self.ctx, name.encode(), value.encode())
+            # osc, ytdl, dan sejenisnya hanya ada bila libmpv dibangun dengan Lua (libmpv yang ikut di versi macOS
+            # tidak). Gunanya mematikan skrip Lua, jadi bila tidak ada, dilewati. Opsi dari pengguna tetap diperiksa.
+            if not (code == _ERROR_OPTION_NOT_FOUND and i < len(own)):
+                self.check(code, name)
         self.check(self.lib.mpv_initialize(self.ctx), "initialize")
         self.check(self.lib.mpv_hook_add(self.ctx, 0, b"on_load", 10), "hook on_load")
         self.events = threading.Thread(target=self.event_loop, name="libmpv-events", daemon=True)
