@@ -145,17 +145,27 @@ def libmpv_mac(bin_dir):
 def swift_rpath(folder):
     """Modul pyobjc versi Intel (mis. CoreMedia, dipakai integrasi media) memanggil @rpath/libswift*.dylib tanpa
     membawa rpath, jadi di dalam ClixMax.app gagal dimuat. Pustaka Swift ada di /usr/lib/swift sejak macOS 10.14.4;
-    rpath itu ditambahkan ke modul yang membutuhkannya. Versi Apple Silicon tidak memakainya."""
+    rpath itu dipasang di modul yang membutuhkannya. Versi Apple Silicon tidak memakainya."""
     for top, _, files in os.walk(folder):
         for name in files:
             path = os.path.join(top, name)
             if os.path.islink(path) or not name.endswith((".so", ".dylib")):
                 continue
             load = subprocess.run(["otool", "-l", path], capture_output=True, text=True).stdout
-            if "@rpath/libswift" in load and "path /usr/lib/swift " not in load:
-                print("rpath /usr/lib/swift:", os.path.relpath(path, folder), flush=True)
-                subprocess.run(["install_name_tool", "-add_rpath", "/usr/lib/swift", path], check=True)
-                subprocess.run(["codesign", "--force", "--sign", "-", path], check=True)
+            deps = [d for d in re.findall(r"cmd LC_LOAD(?:_WEAK)?_DYLIB\s+cmdsize \d+\s+name (\S+) \(offset", load)
+                    if d.startswith("@rpath/")]
+            rpaths = re.findall(r"cmd LC_RPATH\s+cmdsize \d+\s+path (.*) \(offset \d+\)", load)
+            if not any(d.startswith("@rpath/libswift") for d in deps) or "/usr/lib/swift" in rpaths:
+                continue
+            # Header modulnya tidak punya ruang untuk rpath tambahan, jadi rpath dari PyInstaller (@loader_path/..)
+            # diganti; panjangnya hampir sama sehingga muat. Aman hanya bila semua yang dicari lewat @rpath di modul
+            # ini pustaka Swift, jadi itu diperiksa dulu.
+            if len(rpaths) != 1 or not all(d.startswith("@rpath/libswift") for d in deps):
+                raise SystemExit("rpath %s tidak bisa diperbaiki otomatis (rpath %s, dependensi %s)"
+                                 % (path, rpaths, deps))
+            print("rpath /usr/lib/swift:", os.path.relpath(path, folder), "menggantikan", rpaths[0], flush=True)
+            subprocess.run(["install_name_tool", "-rpath", rpaths[0], "/usr/lib/swift", path], check=True)
+            subprocess.run(["codesign", "--force", "--sign", "-", path], check=True)
 
 
 def find_iscc():
