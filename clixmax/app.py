@@ -694,8 +694,13 @@ def selftest(report):
         ytdlp = "modul di dalam ClixMax" if engine else player.find_exe("yt-dlp")
         lines += ["jendela: %s" % root.title(), "mpv: %s (%s)" % ("menjawab" if app.state else "tidak menjawab", mpv),
                   "yt-dlp: %s" % ytdlp, "tray: %s" % ("ada" if app.tray else "tidak ada")]
-        if libmpv and not engine:
-            lines.append("libmpv ada tetapi tidak bisa dipakai; rinciannya di %s" % config.LOG)
+        if libmpv and not engine:  # isi log ikut dilaporkan: di mesin build berkas sementaranya tidak bisa dibuka
+            try:
+                with open(config.LOG, encoding="utf-8", errors="replace") as f:
+                    detail = f.read().strip()[-4000:]
+            except OSError:
+                detail = "(log galat kosong)"
+            lines.append("libmpv ada tetapi tidak bisa dipakai:\n%s" % detail)
         ok = app.state is not None and bool(ytdlp) and (engine or not libmpv)
 
         def plays(track, seconds):
