@@ -132,7 +132,11 @@ mpv dan yt-dlp yang ikut dibagikan dikunci ke versi tertentu dan diperiksa SHA-2
 - **Belum ditandatangani.** Installer Windows dan berkas .dmg macOS belum ditandatangani, jadi keduanya
   memperingatkan saat pertama kali dibuka. Versi Linux baru untuk distro dengan glibc 2.39 ke atas. Di Windows
   dan macOS mpv ikut di dalam ClixMax; di Linux, paket .deb memasangnya lewat apt. mpv yang ikut di macOS adalah
-  build khusus audio dari media-kit (mpv 0.36), lebih lama dari mpv Homebrew tetapi cukup untuk memutar musik.
+  build khusus audio dari media-kit (mpv 0.36) yang tidak membawa filter FFmpeg untuk perataan volume dan geser
+  nada, jadi kedua efek itu tidak aktif. Bila mpv dari Homebrew terpasang (`brew install mpv`), ClixMax memakainya
+  dan kedua efek itu jalan.
+- **Now Playing di Mac Intel belum jalan.** Modul CoreMedia dari pyobjc untuk Intel gagal dimuat di macOS 15,
+  jadi info lagu di Pusat Kontrol dan tombol media belum berfungsi di Mac Intel. Di Mac Apple Silicon sudah jalan.
 - **Sumber tidak resmi.** Pemutaran memakai yt-dlp, beranda dan pencarian memakai ytmusicapi, dan lirik dari
   Netease, QQ Music, dan Kugou memakai alamat yang tidak didokumentasikan resmi. Semuanya bisa berhenti
   bekerja sewaktu-waktu, dan pemakaiannya bisa bertentangan dengan syarat layanan masing-masing. ClixMax
