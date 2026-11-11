@@ -228,8 +228,21 @@ class _Hook(ctypes.Structure):
     _fields_ = [("name", ctypes.c_char_p), ("id", ctypes.c_uint64)]
 
 
+def _dlopen_lazy(path):
+    """Muat pustaka dengan RTLD_LAZY. libmpv yang ikut di versi macOS (media-kit) dibangun tanpa libass: simbolnya
+    sengaja dibiarkan tak terhubung dan tidak pernah dipanggil. ctypes selalu memakai RTLD_NOW yang menolak simbol
+    tak terhubung, jadi dlopen dipanggil sendiri, seperti cara media-kit memuatnya."""
+    libc = ctypes.CDLL(None)
+    libc.dlopen.restype, libc.dlopen.argtypes = ctypes.c_void_p, [ctypes.c_char_p, ctypes.c_int]
+    libc.dlerror.restype = ctypes.c_char_p
+    handle = libc.dlopen(os.fsencode(path), os.RTLD_LAZY | os.RTLD_LOCAL)
+    if not handle:
+        raise OSError((libc.dlerror() or b"dlopen gagal").decode("utf-8", "replace"))
+    return ctypes.CDLL(path, handle=handle)
+
+
 def _load(path):
-    lib = ctypes.CDLL(path)
+    lib = _dlopen_lazy(path) if system.MAC else ctypes.CDLL(path)
     handle, node = ctypes.c_void_p, ctypes.POINTER(_Node)
     for name, result, args in (
             ("mpv_create", handle, []),
@@ -313,7 +326,9 @@ class LibMpv(Mpv):
         else:
             raise RuntimeError("libmpv gagal dibuat (locale %s)" % locale.setlocale(locale.LC_NUMERIC))
         # input-media-keys=no: tombol media dan panel media OS diurus ClixMax sendiri (media.py), bukan mpv.
-        own = OPTIONS + ["vid=no", "ytdl=no", "input-media-keys=no", "volume=%d" % volume]
+        # sid=no, sub-auto=no: ClixMax tidak menampilkan subtitle, dan libmpv macOS tidak punya libass, jadi berkas
+        # .lrc di sebelah lagu tidak boleh dimuat mpv sebagai subtitle.
+        own = OPTIONS + ["vid=no", "sid=no", "sub-auto=no", "ytdl=no", "input-media-keys=no", "volume=%d" % volume]
         options = own + [opt.lstrip("-") for opt in self.extra]
         for i, (name, _, value) in enumerate(opt.partition("=") for opt in options):
             code = self.lib.mpv_set_option_string(self.ctx, name.encode(), value.encode())
