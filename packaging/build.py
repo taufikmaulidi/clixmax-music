@@ -142,6 +142,22 @@ def libmpv_mac(bin_dir):
     subprocess.run(["codesign", "--force", "--sign", "-", lib], check=True)  # tanda tangan lama batal setelah diubah
 
 
+def swift_rpath(folder):
+    """Modul pyobjc versi Intel (mis. CoreMedia, dipakai integrasi media) memanggil @rpath/libswift*.dylib tanpa
+    membawa rpath, jadi di dalam ClixMax.app gagal dimuat. Pustaka Swift ada di /usr/lib/swift sejak macOS 10.14.4;
+    rpath itu ditambahkan ke modul yang membutuhkannya. Versi Apple Silicon tidak memakainya."""
+    for top, _, files in os.walk(folder):
+        for name in files:
+            path = os.path.join(top, name)
+            if os.path.islink(path) or not name.endswith((".so", ".dylib")):
+                continue
+            load = subprocess.run(["otool", "-l", path], capture_output=True, text=True).stdout
+            if "@rpath/libswift" in load and "path /usr/lib/swift " not in load:
+                print("rpath /usr/lib/swift:", os.path.relpath(path, folder), flush=True)
+                subprocess.run(["install_name_tool", "-add_rpath", "/usr/lib/swift", path], check=True)
+                subprocess.run(["codesign", "--force", "--sign", "-", path], check=True)
+
+
 def find_iscc():
     """Pengompilasi Inno Setup: dari PATH, pemasangan biasa, atau pemasangan per pengguna lewat winget."""
     places = [os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"),
@@ -219,6 +235,7 @@ def main():
         out = os.path.join(DIST, name + ".exe")
     elif MAC:
         import plistlib
+        swift_rpath(os.path.join(app, "Contents", "Frameworks"))
         info = os.path.join(app, "Contents", "Info.plist")
         with open(info, "rb") as f:
             plist = plistlib.load(f)

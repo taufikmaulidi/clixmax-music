@@ -1,14 +1,15 @@
 """mpv sebagai mesin pemutar.
 
-Versi build Windows memuat mpv sebagai pustaka (libmpv) dan yt-dlp sebagai modul Python, semuanya di dalam
-proses ClixMax, jadi Task Manager hanya menampilkan ClixMax.exe. Di tempat lain mpv dijalankan sebagai program
-tanpa jendela dan dikendalikan lewat IPC JSON.
+mpv dimuat sebagai pustaka (libmpv) dan yt-dlp sebagai modul Python, semuanya di dalam proses ClixMax, jadi
+Task Manager atau Activity Monitor hanya menampilkan ClixMax. Bila libmpv tidak ada atau gagal dimuat, mpv
+dijalankan sebagai program tanpa jendela dan dikendalikan lewat IPC JSON.
 """
 import ctypes
 import glob
 import json
 import locale
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -70,9 +71,11 @@ def find_libmpv():
         base = os.path.dirname(sys.executable if frozen else os.path.dirname(os.path.abspath(__file__)))
         places = [os.path.join(base, "bin", "libmpv-2.dll")]
     elif system.MAC:
-        # Versi build membawa libmpv sendiri di ClixMax.app/Contents/MacOS/bin, jadi tidak perlu Homebrew.
-        places = [os.path.join(os.path.dirname(sys.executable), "bin", "libmpv.dylib")] if frozen else []
-        places += [os.path.join(d, "libmpv.2.dylib") for d in ("/opt/homebrew/lib", "/usr/local/lib", "/opt/local/lib")]
+        # mpv dari Homebrew/MacPorts didahulukan bila terpasang: lebih baru dan FFmpeg-nya lengkap (perataan volume,
+        # geser nada). Selain itu versi build memakai libmpv bawaannya di ClixMax.app/Contents/MacOS/bin.
+        places = [os.path.join(d, "libmpv.2.dylib") for d in ("/opt/homebrew/lib", "/usr/local/lib", "/opt/local/lib")]
+        if frozen:
+            places.append(os.path.join(os.path.dirname(sys.executable), "bin", "libmpv.dylib"))
     else:
         places = sorted(glob.glob("/usr/lib*/libmpv.so.2") + glob.glob("/usr/lib/*-linux-gnu/libmpv.so.2") +
                         glob.glob("/usr/local/lib*/libmpv.so.2"))
@@ -228,14 +231,14 @@ class _Hook(ctypes.Structure):
     _fields_ = [("name", ctypes.c_char_p), ("id", ctypes.c_uint64)]
 
 
-def _dlopen_lazy(path):
+def _dlopen_lazy(path, flags=0):
     """Muat pustaka dengan RTLD_LAZY. libmpv yang ikut di versi macOS (media-kit) dibangun tanpa libass: simbolnya
     sengaja dibiarkan tak terhubung dan tidak pernah dipanggil. ctypes selalu memakai RTLD_NOW yang menolak simbol
     tak terhubung, jadi dlopen dipanggil sendiri, seperti cara media-kit memuatnya."""
     libc = ctypes.CDLL(None)
     libc.dlopen.restype, libc.dlopen.argtypes = ctypes.c_void_p, [ctypes.c_char_p, ctypes.c_int]
     libc.dlerror.restype = ctypes.c_char_p
-    handle = libc.dlopen(os.fsencode(path), os.RTLD_LAZY | os.RTLD_LOCAL)
+    handle = libc.dlopen(os.fsencode(path), os.RTLD_LAZY | os.RTLD_LOCAL | flags)
     if not handle:
         raise OSError((libc.dlerror() or b"dlopen gagal").decode("utf-8", "replace"))
     return ctypes.CDLL(path, handle=handle)
@@ -312,7 +315,7 @@ class LibMpv(Mpv):
     def __init__(self, path):
         super().__init__()
         self.path = path
-        self.lib = self.ctx = self.events = self.ydl = None
+        self.lib = self.ctx = self.events = self.ydl = self.has_filter = None
 
     def start(self, volume):
         self.lib = _load(self.path)
@@ -337,6 +340,7 @@ class LibMpv(Mpv):
             if not (code == _ERROR_OPTION_NOT_FOUND and i < len(own)):
                 self.check(code, name)
         self.check(self.lib.mpv_initialize(self.ctx), "initialize")
+        self.has_filter = self.filter_check()
         self.check(self.lib.mpv_hook_add(self.ctx, 0, b"on_load", 10), "hook on_load")
         self.events = threading.Thread(target=self.event_loop, name="libmpv-events", daemon=True)
         self.events.start()
@@ -345,9 +349,36 @@ class LibMpv(Mpv):
         if code < 0:
             raise RuntimeError("libmpv %s: %s" % (what, self.lib.mpv_error_string(code).decode()))
 
+    def filter_check(self):
+        """Pemeriksa nama filter FFmpeg, atau None bila semuanya dianggap ada. Hanya libmpv macOS bawaan (media-kit)
+        yang FFmpeg-nya dipangkas: filternya cuma equalizer dan overlay."""
+        avfilter = os.path.join(os.path.dirname(self.path), "libavfilter.dylib")
+        if not (system.MAC and os.path.exists(avfilter)):
+            return None
+        try:
+            lib = _dlopen_lazy(avfilter, os.RTLD_NOLOAD)  # sudah dimuat bersama libmpv
+            lib.avfilter_get_by_name.restype, lib.avfilter_get_by_name.argtypes = ctypes.c_void_p, [ctypes.c_char_p]
+        except (OSError, AttributeError):
+            config.log_error("libavfilter tidak bisa diperiksa, efek suara dimatikan:\n" + traceback.format_exc())
+            return lambda name: False
+        return lambda name: bool(lib.avfilter_get_by_name(name.encode()))
+
+    def usable_filters(self, chain):
+        """Rantai af tanpa bagian lavfi yang filternya tidak ada. Filter yang gagal dibuat membuat mpv mematikan
+        audio sehingga lagu tidak berbunyi sama sekali; lebih baik efeknya saja yang hilang."""
+        parts = re.findall(r"lavfi=\[[^\]]*\]|[^,]+", chain)
+        keep = [part for part in parts if not part.startswith("lavfi=[") or
+                all(self.has_filter(f.split("=", 1)[0]) for f in part[7:-1].split(","))]
+        if len(keep) < len(parts):
+            config.log_error("Efek suara tidak tersedia di libmpv ini, dilewati: %s"
+                             % ", ".join(p for p in parts if p not in keep))
+        return ",".join(keep)
+
     def cmd(self, *args):
         keep = []
         if args[0] == "set_property":  # perintah khusus IPC; di libmpv fungsinya sendiri
+            if args[1] == "af" and self.has_filter:
+                args = (args[0], args[1], self.usable_filters(args[2]))
             value = _to_node(args[2], keep)
             code = self.lib.mpv_set_property(self.ctx, args[1].encode(), _NODE, ctypes.byref(value))
             return {"error": self.lib.mpv_error_string(code).decode()}

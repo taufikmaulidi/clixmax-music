@@ -177,7 +177,10 @@ class Playback:
         at = current + 1 if isinstance(current, int) and current >= 0 else len(self.queue)
         for k, track in enumerate(tracks):
             track.pop("tag", None)
-            self.send("loadfile", track["url"], "insert-at", at + k)
+            # Ditambahkan di ujung lalu dipindah, bukan "loadfile ... insert-at" yang baru ada sejak mpv 0.38
+            # (libmpv yang ikut di versi macOS adalah mpv 0.36).
+            self.send("loadfile", track["url"], "append")
+            self.send("playlist-move", len(self.queue) + k, at + k)
         self.q_list.insert(at, tracks)
         self.pos = None
         self.sync_queue()

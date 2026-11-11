@@ -666,7 +666,8 @@ def selftest(report):
     if sys.stderr is not None:  # crash di kode C (Tk, pustaka sistem) tetap meninggalkan jejak tumpukan
         faulthandler.enable(sys.stderr, all_threads=True)
     work = tempfile.mkdtemp(prefix="clixmax-selftest-")
-    player.Mpv.extra = ["--ao=null"]  # mesin build tidak punya kartu suara
+    mpv_log = os.path.join(work, "mpv.log")
+    player.Mpv.extra = ["--ao=null", "--log-file=" + mpv_log]  # mesin build tidak punya kartu suara
     config.PIPE = system.ipc_path("clixmax-selftest")
     for name in ("CFG", "LOG", "LIB", "SESSION", "LYRICS", "LOCAL"):
         setattr(config, name, os.path.join(work, os.path.basename(getattr(config, name))))
@@ -693,15 +694,14 @@ def selftest(report):
         mpv = ("libmpv di dalam ClixMax, %s" % libmpv) if engine else ("program %s" % player.find_exe("mpv"))
         ytdlp = "modul di dalam ClixMax" if engine else player.find_exe("yt-dlp")
         lines += ["jendela: %s" % root.title(), "mpv: %s (%s)" % ("menjawab" if app.state else "tidak menjawab", mpv),
-                  "yt-dlp: %s" % ytdlp, "tray: %s" % ("ada" if app.tray else "tidak ada")]
-        if libmpv and not engine:  # isi log ikut dilaporkan: di mesin build berkas sementaranya tidak bisa dibuka
-            try:
-                with open(config.LOG, encoding="utf-8", errors="replace") as f:
-                    detail = f.read().strip()[-4000:]
-            except OSError:
-                detail = "(log galat kosong)"
-            lines.append("libmpv ada tetapi tidak bisa dipakai:\n%s" % detail)
+                  "yt-dlp: %s" % ytdlp, "tray: %s" % ("ada" if app.tray else "tidak ada"),
+                  "integrasi media OS: %s" % app.media.kind]
+        if libmpv and not engine:
+            lines.append("libmpv ada tetapi tidak bisa dipakai")
         ok = app.state is not None and bool(ytdlp) and (engine or not libmpv)
+        # macOS: Now Playing harus termuat (di Mac Intel pernah gagal diam-diam karena pustaka Swift tidak ketemu).
+        # Di Linux tidak diwajibkan: mesin build tidak punya bus D-Bus sesi untuk MPRIS.
+        ok = ok and not (system.MAC and app.media.kind == "none")
 
         def plays(track, seconds):
             app.clear_queue()
@@ -746,6 +746,18 @@ def selftest(report):
         app.close()
     except Exception:
         lines.append(traceback.format_exc())
+    if not ok:  # isi log ikut dilaporkan: di mesin build berkas sementaranya tidak bisa dibuka setelah uji selesai
+        def read(path):
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    return f.read().splitlines()
+            except OSError:
+                return []
+        lines += ["--- log galat ClixMax"] + read(config.LOG)[-60:]
+        # Log mpv sangat rinci; yang diambil hanya galat, peringatan, dan pesan pemutar utama.
+        lines += ["--- log mpv"] + [line for line in read(mpv_log)
+                                    if "][e][" in line or "][w][" in line or "][f][" in line
+                                    or "][i][cplayer]" in line][-60:]
     lines.append("LOLOS" if ok else "GAGAL")
     with open(report, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
