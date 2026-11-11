@@ -699,9 +699,10 @@ def selftest(report):
         if libmpv and not engine:
             lines.append("libmpv ada tetapi tidak bisa dipakai")
         ok = app.state is not None and bool(ytdlp) and (engine or not libmpv)
-        # macOS: Now Playing harus termuat (di Mac Intel pernah gagal diam-diam karena pustaka Swift tidak ketemu).
-        # Di Linux tidak diwajibkan: mesin build tidak punya bus D-Bus sesi untuk MPRIS.
-        ok = ok and not (system.MAC and app.media.kind == "none")
+        # Mac Apple Silicon: Now Playing harus termuat. Belum diwajibkan di Mac Intel, karena modul CoreMedia pyobjc
+        # versi x86_64 mencari simbol yang di macOS 15 tidak lagi ada di libswiftCoreMedia, dan di Linux, karena
+        # mesin build tidak punya bus D-Bus sesi untuk MPRIS.
+        ok = ok and not (system.MAC and os.uname().machine == "arm64" and app.media.kind == "none")
 
         def plays(track, seconds):
             app.clear_queue()
