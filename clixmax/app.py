@@ -2,7 +2,6 @@
 import os
 import queue
 import shutil
-import subprocess
 import sys
 import threading
 import time
@@ -37,6 +36,7 @@ class App(Playback, Browsing):
         self.cfg.update({key: value for key, value in cfg.items() if key in config.DEFAULTS})
         self.cmdq, self.uiq, self.artq = queue.Queue(), queue.Queue(), queue.Queue()
         self.alive = True
+        self.engine = None  # mesin pemutar yang sedang dipakai (player.LibMpv atau player.Mpv)
         self.pos, self.state, self.state_at = -1, None, 0.0
         self.search_token = self.browse_token = self.suggest_token = 0
         self.lyrics_token = self.home_token = self.local_token = 0
@@ -672,16 +672,31 @@ def selftest(report):
         setattr(config, name, os.path.join(work, os.path.basename(getattr(config, name))))
     config.OLD_CFG = None
     lines, ok = [], False
+    spawned, watching = set(), [True]
+
+    def watch():  # dicek berulang supaya program yang hanya hidup sebentar (yt-dlp) juga tertangkap
+        while watching:
+            spawned.update(system.child_processes())
+            time.sleep(0.1)
+
+    threading.Thread(target=watch, daemon=True).start()
     try:
         root, app = create("")
+        app.on_fatal = lambda text: lines.append("pemutar berhenti: %s" % text)  # kotak pesan akan menahan uji
         end = time.time() + 40
         while time.time() < end and app.state is None:
             root.update()
             time.sleep(0.05)
-        mpv, ytdlp = player.find_exe("mpv"), player.find_exe("yt-dlp")
+        # libmpv yang ditemukan harus benar-benar terpakai: mpv dan yt-dlp di dalam proses ClixMax.
+        libmpv = player.find_libmpv()
+        engine = isinstance(app.engine, player.LibMpv)
+        mpv = ("libmpv di dalam ClixMax, %s" % libmpv) if engine else ("program %s" % player.find_exe("mpv"))
+        ytdlp = "modul di dalam ClixMax" if engine else player.find_exe("yt-dlp")
         lines += ["jendela: %s" % root.title(), "mpv: %s (%s)" % ("menjawab" if app.state else "tidak menjawab", mpv),
                   "yt-dlp: %s" % ytdlp, "tray: %s" % ("ada" if app.tray else "tidak ada")]
-        ok = app.state is not None and bool(ytdlp)
+        if libmpv and not engine:
+            lines.append("libmpv ada tetapi tidak bisa dipakai; rinciannya di %s" % config.LOG)
+        ok = app.state is not None and bool(ytdlp) and (engine or not libmpv)
 
         def plays(track, seconds):
             app.clear_queue()
@@ -706,16 +721,23 @@ def selftest(report):
             lines.append("memutar dari YouTube: %s" % ("ya, %s" % rows[0]["title"] if streamed else "tidak"))
             if rows and not streamed:
                 # Tampilkan alasan yt-dlp apa adanya; YouTube sering menolak alamat IP pusat data (mesin build).
-                run = subprocess.run([ytdlp, "--simulate", "--no-warnings", "-f", "bestaudio/best", rows[0]["url"]],
-                                     capture_output=True, timeout=120, creationflags=system.HIDDEN)
-                reason = (run.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-1:] or ["(kosong)"]
-                lines.append("yt-dlp: %s" % reason[0])
-                blocked = any(mark in reason[0] for mark in ("Sign in to confirm", "not a bot"))
+                try:
+                    with player.ytdl(format="bestaudio/best") as ydl:
+                        ydl.extract_info(rows[0]["url"], download=False)
+                    reason = "alamat audio didapat, tetapi mpv tidak memutarnya"
+                except Exception as exc:
+                    reason = " ".join(str(exc).split()) or "(kosong)"
+                lines.append("yt-dlp: %s" % reason)
+                blocked = any(mark in reason for mark in ("Sign in to confirm", "not a bot"))
                 lines.append("catatan: YouTube menolak alamat IP mesin ini (bukan galat ClixMax)" if blocked else
                              "catatan: pemutaran YouTube gagal karena sebab lain")
                 ok = blocked and bool(os.environ.get("CI"))  # hanya dimaafkan di mesin build, tidak di komputer pengguna
             else:
                 ok = streamed
+        watching.clear()
+        if engine:  # semuanya di dalam ClixMax: tanpa mpv, yt-dlp, atau deno di Task Manager/Activity Monitor
+            lines.append("program lain yang dijalankan: %s" % (", ".join(sorted(spawned)) or "tidak ada"))
+            ok = ok and not spawned
         app.close()
     except Exception:
         lines.append(traceback.format_exc())

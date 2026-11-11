@@ -2,13 +2,10 @@
 
 Fungsi di sini memblokir (jaringan); App memanggilnya dari thread latar.
 """
-import json
 import re
-import subprocess
 
-from . import system
 from .config import LOADING, fmt_time
-from .player import find_exe
+from .player import ytdl
 
 YT_ID = re.compile(r"(?:v=|youtu\.be/|/shorts/|/live/)([A-Za-z0-9_-]{11})")
 
@@ -130,12 +127,8 @@ def single_link(url):
 
 def read_link(url):
     """Semua lagu dari link lain (playlist, situs lain yang didukung yt-dlp)."""
-    ytdlp = find_exe("yt-dlp")
-    if not ytdlp:
-        raise RuntimeError("yt-dlp tidak ditemukan. Pasang dengan: %s" % system.install_hint("yt-dlp"))
-    run = subprocess.run([ytdlp, "--flat-playlist", "-J", "--no-warnings", url], capture_output=True,
-                         creationflags=system.HIDDEN, timeout=120)
-    info = json.loads(run.stdout.decode("utf-8", "replace"))
+    with ytdl(extract_flat="in_playlist") as ydl:
+        info = ydl.extract_info(url, download=False)
     entries = info.get("entries") if info.get("_type") == "playlist" else [info]
     tracks = []
     for e in entries or []:

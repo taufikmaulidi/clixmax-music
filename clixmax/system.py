@@ -2,6 +2,7 @@
 
 Windows sudah diuji. macOS dan Linux memakai jalur standar masing-masing tetapi belum diuji langsung.
 """
+import ctypes
 import os
 import socket
 import sys
@@ -19,7 +20,6 @@ HIDDEN = 0x08000000 if WINDOWS else 0        # subprocess tanpa jendela konsol (
 CONTEXT_CLICK = ("<Button-2>", "<Control-Button-1>") if MAC else ("<Button-3>",)
 
 if WINDOWS:
-    import ctypes
     from ctypes import wintypes
 
 
@@ -200,6 +200,56 @@ def single_instance(name):
         return False
     _instance_lock = fd
     return True
+
+
+def child_processes():
+    """Nama program yang sedang dijalankan proses ini, untuk memastikan ClixMax tetap satu proses. Dibaca langsung
+    dari sistem (tanpa menjalankan ps, yang malah menambah proses)."""
+    me = os.getpid()
+    if LINUX:
+        found = []
+        for pid in filter(str.isdigit, os.listdir("/proc")):
+            try:
+                with open("/proc/%s/stat" % pid, encoding="utf-8", errors="replace") as f:
+                    stat = f.read()
+            except OSError:
+                continue
+            # "pid (nama) status ppid ...": nama boleh berisi spasi atau kurung, jadi dipotong di kurung terakhir.
+            if int(stat[stat.rindex(")") + 2:].split()[1]) == me:
+                found.append(stat[stat.index("(") + 1:stat.rindex(")")])
+        return found
+    if MAC:
+        libproc = ctypes.CDLL("/usr/lib/libproc.dylib")
+        pids = (ctypes.c_int * 1024)()
+        size = libproc.proc_listpids(6, me, pids, ctypes.sizeof(pids))  # PROC_PPID_ONLY; hasilnya dalam byte
+        names = []
+        for pid in pids[:max(size, 0) // ctypes.sizeof(ctypes.c_int)]:
+            name = ctypes.create_string_buffer(256)
+            if pid and libproc.proc_name(pid, name, 256) > 0:
+                names.append(name.value.decode("utf-8", "replace"))
+        return names
+
+    class Entry(ctypes.Structure):  # PROCESSENTRY32W
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
+                    ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", wintypes.DWORD),
+                    ("cntThreads", wintypes.DWORD), ("th32ParentProcessID", wintypes.DWORD),
+                    ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                    ("szExeFile", ctypes.c_wchar * 260)]
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snap = kernel32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    entry, found = Entry(), []
+    entry.dwSize = ctypes.sizeof(Entry)
+    try:
+        more = kernel32.Process32FirstW(snap, ctypes.byref(entry))
+        while more:
+            if entry.th32ParentProcessID == os.getpid():
+                found.append(entry.szExeFile)
+            more = kernel32.Process32NextW(snap, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(wintypes.HANDLE(snap))
+    return found
 
 
 def watch_media_keys(callback):

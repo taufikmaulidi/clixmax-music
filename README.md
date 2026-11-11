@@ -39,23 +39,34 @@ Lagu, cover, dan lirik di tangkapan layar ini contoh buatan `tests/screenshots.p
 Ambil berkas untuk OS Anda di halaman [Releases](https://github.com/taufikmaulidi/clixmax-music/releases).
 Programnya belum ditandatangani, jadi Windows dan macOS akan memperingatkan saat pertama kali dibuka.
 
-- **Windows** (`ClixMax-windows-x64.zip`): ekstrak, lalu buka `ClixMax\ClixMax.exe`. mpv dan yt-dlp sudah
-  ikut di dalamnya. Bila muncul "Windows protected your PC", pilih *More info* lalu *Run anyway*.
-- **Linux x64** (`ClixMax-linux-x64.tar.gz`): untuk distro dengan glibc 2.39 ke atas (Ubuntu 24.04, Debian 13,
-  Fedora 40, atau lebih baru). Pasang mpv (`sudo apt install mpv`), ekstrak, lalu jalankan `ClixMax/ClixMax`.
-  yt-dlp sudah ikut. Distro yang lebih lama: jalankan dari kode sumber (lihat catatan Tk di bawah).
-- **macOS 11 ke atas**: `ClixMax-macos-arm64.zip` untuk Mac Apple Silicon (M1 dan seterusnya),
-  `ClixMax-macos-x64.zip` untuk Mac Intel. Pasang mpv (`brew install mpv`), ekstrak, lalu pindahkan
-  `ClixMax.app` ke Applications. yt-dlp sudah ikut. Karena belum ditandatangani Apple, macOS menolaknya saat
-  pertama kali dibuka:
+- **Windows** (`ClixMax-windows-x64-setup.exe`): jalankan installer-nya. ClixMax dipasang untuk pengguna
+  ini saja (tanpa izin administrator), masuk Start Menu, lalu langsung dibuka. Bila muncul "Windows protected
+  your PC", pilih *More info* lalu *Run anyway*. Menghapusnya lewat *Settings → Apps*. Versi tanpa dipasang:
+  `ClixMax-windows-x64.zip`, ekstrak lalu buka `ClixMax\ClixMax.exe`. mpv dan yt-dlp sudah ikut.
+- **Linux x64**, untuk distro dengan glibc 2.39 ke atas (Ubuntu 24.04, Debian 13, Fedora 40, atau lebih baru):
+  - Ubuntu dan Debian (`ClixMax-linux-x64.deb`): `sudo apt install ./ClixMax-linux-x64.deb`. mpv ikut
+    terpasang dari distro, lalu ClixMax ada di menu aplikasi dan bisa dibuka dengan perintah `clixmax`.
+    Menghapusnya: `sudo apt remove clixmax`.
+  - Distro lain (`ClixMax-linux-x64.tar.gz`): pasang mpv dari distro, ekstrak, lalu jalankan
+    `ClixMax/ClixMax`.
+
+  Distro yang lebih lama: jalankan dari kode sumber (lihat catatan Tk di bawah).
+- **macOS 11 ke atas**: `ClixMax-macos-arm64.dmg` untuk Mac Apple Silicon (M1 dan seterusnya),
+  `ClixMax-macos-x64.dmg` untuk Mac Intel. Pasang mpv (`brew install mpv`), buka berkas .dmg, lalu seret
+  `ClixMax.app` ke Applications. Isi yang sama juga ada sebagai .zip. Karena belum ditandatangani Apple, macOS
+  menolaknya saat pertama kali dibuka:
   - macOS 15 (Sequoia) atau lebih baru: buka sekali sampai ditolak, lalu *System Settings → Privacy & Security*,
     gulir ke bawah, pilih *Open Anyway* di samping ClixMax.
   - macOS 14 atau lebih lama: klik kanan `ClixMax.app`, pilih *Open*.
   - Bila muncul pesan aplikasi "rusak" (*damaged*), jalankan di Terminal:
     `xattr -dr com.apple.quarantine /Applications/ClixMax.app`
 
-Setiap rilis dibangun dan diuji otomatis di GitHub Actions: aplikasinya dinyalakan, memutar berkas lokal,
-mencari satu lagu di YouTube Music, dan memutarnya sampai berjalan (tanpa suara).
+Di ketiga OS mpv dimuat sebagai pustaka (libmpv) dan yt-dlp sebagai modul, semuanya di dalam proses ClixMax,
+jadi Task Manager, Activity Monitor, atau System Monitor hanya menampilkan satu proses ClixMax.
+
+Setiap rilis dibangun dan diuji otomatis di GitHub Actions dari installer, .deb, dan .dmg-nya: aplikasinya
+dinyalakan, memutar berkas lokal, mencari satu lagu di YouTube Music, dan memutarnya sampai berjalan (tanpa
+suara), tanpa menjalankan program lain.
 
 ## Jalankan dari kode sumber
 
@@ -108,8 +119,9 @@ python packaging/build.py
 ```
 
 Hasilnya di `dist/` untuk OS yang sedang dipakai. Di Windows butuh 7-Zip untuk membuka arsip mpv
-(`winget install 7zip.7zip`). mpv dan yt-dlp yang ikut dibagikan dikunci ke versi tertentu dan diperiksa
-SHA-256-nya; lihat `packaging/build.py`. Versi build bisa diuji dengan `ClixMax --selftest=hasil.txt`.
+(`winget install 7zip.7zip`) dan Inno Setup 6 untuk membuat installer (`winget install JRSoftware.InnoSetup`).
+mpv dan yt-dlp yang ikut dibagikan dikunci ke versi tertentu dan diperiksa SHA-256-nya; lihat
+`packaging/build.py`. Versi build bisa diuji dengan `ClixMax --selftest=hasil.txt`.
 
 ## Catatan penting
 
@@ -117,9 +129,9 @@ SHA-256-nya; lihat `packaging/build.py`. Versi build bisa diuji dengan `ClixMax 
   (menyala, memutar berkas lokal, mencari dan memutar lagu YouTube Music), tapi panel media (MPRIS, Pusat
   Kontrol) dan ikon tray belum pernah dicoba di mesin sungguhan. Laporan dari pengguna macOS dan Linux sangat
   membantu.
-- **Belum ada installer.** Versi siap pakai berupa arsip yang diekstrak dan belum ditandatangani, jadi macOS
-  dan Windows memperingatkan saat pertama kali dibuka. Versi Linux baru untuk distro dengan glibc 2.39 ke
-  atas. Di Linux dan macOS, mpv dipasang sendiri.
+- **Belum ditandatangani.** Installer Windows dan berkas .dmg macOS belum ditandatangani, jadi keduanya
+  memperingatkan saat pertama kali dibuka. Versi Linux baru untuk distro dengan glibc 2.39 ke atas. Di macOS,
+  mpv dipasang sendiri lewat Homebrew; di Linux, paket .deb memasangnya lewat apt.
 - **Sumber tidak resmi.** Pemutaran memakai yt-dlp, beranda dan pencarian memakai ytmusicapi, dan lirik dari
   Netease, QQ Music, dan Kugou memakai alamat yang tidak didokumentasikan resmi. Semuanya bisa berhenti
   bekerja sewaktu-waktu, dan pemakaiannya bisa bertentangan dengan syarat layanan masing-masing. ClixMax

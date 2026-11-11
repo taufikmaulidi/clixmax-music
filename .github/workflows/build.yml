@@ -32,13 +32,20 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Pasang mpv (Linux)
+      # mpv sengaja tidak dipasang di sini: paket .deb ClixMax yang harus menariknya (libmpv2) lewat apt.
+      - name: Pasang layar virtual (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y mpv xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: Pasang mpv (macOS)
         if: runner.os == 'macOS'
         run: brew install mpv
+
+      - name: Pasang Inno Setup (Windows, untuk installer)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
 
       - name: Pasang paket Python
         run: python -m pip install -r requirements.txt -r packaging/requirements-build.txt
@@ -56,33 +63,44 @@ jobs:
         if: runner.os == 'Linux'
         run: xvfb-run -a python packaging/build.py
 
-      - name: Uji diri (Windows)
+      # Uji diri gagal bila ClixMax menjalankan program lain (mpv, yt-dlp, deno): di ketiga OS mpv dimuat sebagai
+      # libmpv dan yt-dlp sebagai modul, semuanya di dalam proses ClixMax.
+      - name: Uji diri (Windows, dari installer)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath dist\ClixMax\ClixMax.exe -ArgumentList "--selftest=$PWD\selftest.txt" -Wait -PassThru
+          $setup = (Get-ChildItem dist\ClixMax-windows-*-setup.exe).FullName
+          $dir = "$env:RUNNER_TEMP\ClixMax"
+          $i = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$dir" -Wait -PassThru
+          if ($i.ExitCode -ne 0) { Write-Error "installer gagal, kode $($i.ExitCode)"; exit 1 }
+          $p = Start-Process -FilePath "$dir\ClixMax.exe" -ArgumentList "--selftest=$PWD\selftest.txt" -Wait -PassThru
           Get-Content selftest.txt
           exit $p.ExitCode
 
-      - name: Uji diri (Linux, 20 kali berturut-turut; crash acak harus benar-benar hilang)
+      # Dipasang dari .deb (apt sekalian memasang libmpv), lalu perintah clixmax yang terpasang yang diuji.
+      - name: Uji diri (Linux, dari .deb, 20 kali berturut-turut; crash acak harus benar-benar hilang)
         if: runner.os == 'Linux'
         run: |
+          sudo apt-get install -y ./dist/ClixMax-linux-*.deb
           failed=0
           for i in $(seq 1 20); do
             code=0
-            xvfb-run -a dist/ClixMax/ClixMax --selftest="$PWD/selftest$i.txt" || code=$?
+            xvfb-run -a clixmax --selftest="$PWD/selftest$i.txt" || code=$?
             echo "--- percobaan $i, kode keluar $code"
             cat selftest$i.txt 2>/dev/null || echo "(laporan tidak tertulis)"
             [ $code -eq 0 ] || failed=1
           done
           exit $failed
 
-      - name: Uji diri (macOS)
+      # ClixMax.app dijalankan langsung dari .dmg yang dibuka, sama seperti yang diterima pengguna.
+      - name: Uji diri (macOS, dari .dmg)
         if: runner.os == 'macOS'
         run: |
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dmg" dist/ClixMax-macos-*.dmg
           code=0
-          dist/ClixMax.app/Contents/MacOS/ClixMax --selftest="$PWD/selftest.txt" || code=$?
+          "$RUNNER_TEMP/dmg/ClixMax.app/Contents/MacOS/ClixMax" --selftest="$PWD/selftest.txt" || code=$?
           cat selftest.txt
+          hdiutil detach "$RUNNER_TEMP/dmg"
           exit $code
 
       - uses: actions/upload-artifact@v4
@@ -91,6 +109,9 @@ jobs:
           path: |
             dist/ClixMax-*.zip
             dist/ClixMax-*.tar.gz
+            dist/ClixMax-*-setup.exe
+            dist/ClixMax-*.dmg
+            dist/ClixMax-*.deb
           if-no-files-found: error
 
   release:

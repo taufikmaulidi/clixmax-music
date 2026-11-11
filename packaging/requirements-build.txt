@@ -1,1 +1,4 @@
 pyinstaller>=6.10
+# Modul yt-dlp yang ikut di versi build (membaca link, dan memutar lagu di Windows).
+# Samakan dengan YTDLP_VERSION di packaging/build.py.
+yt-dlp==2026.10.26

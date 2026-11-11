@@ -8,7 +8,7 @@ from . import artwork, audio, config, music
 from . import lyrics as lyricsmod
 from .config import APP, LOADING, TITLE, fmt_time, log_error, seconds_of
 from .library import load_session, save_session
-from .player import Mpv
+from .player import start_mpv
 from .theme import RED, SURF, G_LYRICS, G_MUTE, G_PAUSE, G_PLAY, G_REPEAT, G_REPEAT_ONE, G_VOL
 
 
@@ -18,9 +18,9 @@ class Playback:
         self.cmdq.put(args)
 
     def mpv_loop(self):
-        mpv = Mpv()
+        mpv = None
         try:
-            mpv.start(int(self.cfg.get("volume", 70)))
+            mpv = self.engine = start_mpv(int(self.cfg.get("volume", 70)))
             last = 0.0
             while self.alive:
                 try:
@@ -41,7 +41,8 @@ class Playback:
                 log_error(traceback.format_exc())
                 self.uiq.put(("fatal", str(exc)))
         finally:
-            mpv.stop()
+            if mpv:
+                mpv.stop()
 
     def pump(self):
         """Proses pesan dari thread lain. Error satu pesan dicatat dan tidak menghentikan pesan berikutnya."""
